@@ -17,17 +17,41 @@ import yaml
 # pydevd.settrace(host='localhost', port=5678, stdoutToServer=True, stderrToServer=UnicodeTranslateError,
 #                 suspend=False)
 
-class Action:
-    def __init__(self, click_actions: Actions, action_state: ActionState):
-        self.click_actions: Actions = click_actions
-        self.action_state: ActionState = action_state
+class ActionState:
+    ACTION_STATE_FILE = Path('actions-state.yaml')
+
+    def __init__(self, path: Path):
+
+        if not path.is_absolute():
+            raise Exception(f'State path should be absolute but got {path}')
+        if (path / ActionState.ACTION_STATE_FILE).exists():
+            with open(path / ActionState.ACTION_STATE_FILE) as f:
+                self.__dict__ = yaml.unsafe_load(f)
+        self.path = path
+
+    def save(self):
+        if not self.path.exists():
+            self.path.mkdir(parents=True)
+        with open(self.path / ActionState.ACTION_STATE_FILE, 'w') as f:
+            f.write(yaml.dump(self.__dict__))
+
+
+S = t.TypeVar('S', bound=ActionState)
+
+
+class Action(t.Generic[S]):
+    def __init__(self, actions: Actions, state: S):
+        self.actions: Actions = actions
+        self.state: S = state
         self._setup_logger()
 
     def _setup_logger(self):
         self.logger = logging.getLogger('Actions.' + self.__class__.__name__)
-        log_path: Path = self.action_state.path / 'logs' / (self.click_actions.datetime_prefix + '_log.txt')
+        self.logger.setLevel(logging.DEBUG)
+        log_path: Path = self.state.path / 'logs' / (self.actions.datetime_prefix + '_log.txt')
         log_path.parent.mkdir(parents=True, exist_ok=True)
         file_handler = logging.FileHandler(filename=log_path)
+        # file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(logging.Formatter(fmt=Actions.LOG_FMT))
         self.logger.addHandler(file_handler)
 
@@ -123,29 +147,12 @@ class _ColorFormatter(logging.Formatter):
         return formatter.format(record)
 
 
-class ActionState:
-    ACTION_STATE = Path('actions-state.yaml')
-
-    def __init__(self, path: Path):
-
-        if (path / ActionState.ACTION_STATE).exists():
-            with open(path / ActionState.ACTION_STATE) as f:
-                self.__dict__ = yaml.unsafe_load(f)
-        self.path = path
-
-    def save(self):
-        if not self.path.exists():
-            self.path.mkdir(parents=True)
-        with open(self.path / ActionState.ACTION_STATE, 'w') as f:
-            f.write(yaml.dump(self.__dict__))
-
-
 class Actions:
     LOG_FMT = '%(asctime)s:%(levelname)s:%(name)s: %(message)s'
     CONSOLE_LOG_FMT = '%(name)s: %(message)s'
     LOG_DATE_FMT = '%Y-%m-%d %H:%M:%S,uuu'
 
-    def __init__(self, actions_home_path: Path = Path.cwd(), log_level: str = 'INFO'):
+    def __init__(self, actions_home_path: Path = Path.cwd(), log_level: str = 'DEBUG'):
         self.datetime: datetime.datetime = datetime.datetime.now()
         self.actions_home_path: Path = actions_home_path
         self.log_level: str = log_level
@@ -159,11 +166,13 @@ class Actions:
     def _setup_logger(self):
 
         self.console_handler: logging.Handler = logging.StreamHandler()
+        self.console_handler.setLevel(logging.INFO)
         self.console_handler.formatter = _ColorFormatter(message_format=Actions.CONSOLE_LOG_FMT)
 
         log_path = self.actions_home_path / 'logs' / (self.datetime_prefix + "_log.txt")
         log_path.parent.mkdir(parents=True, exist_ok=True)
         self.file_handler = logging.FileHandler(log_path)
+        self.file_handler.setLevel(logging.DEBUG)
         self.file_handler.formatter = logging.Formatter(fmt=Actions.LOG_FMT)
 
         self.logger: logging.Logger = logging.getLogger('Actions')
@@ -176,11 +185,13 @@ class Actions:
     def datetime_prefix(self):
         return self.datetime.strftime('%Y.%m.%d_%H.%M.%S')
 
-    def get_action_state(self, path: Path, state_type=ActionState):
+    def get_action_state(self, path: t.Union[Path, str], state_type=ActionState, create: bool = True):
+        if isinstance(path, str):
+            path = Path(path)
         if not path.is_absolute():
             path = self.actions_home_path / path
-        if path not in self.action_states:
-            self.action_states[path] = state_type(path)
+        if path not in self.action_states and create:
+            self.action_states[path] = state_type(path.resolve())
         return self.action_states[path]
 
     def save(self):

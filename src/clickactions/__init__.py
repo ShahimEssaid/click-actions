@@ -126,17 +126,17 @@ class Commands(click.MultiCommand):
 class _ColorFormatter(logging.Formatter):
     FORMATTERS: t.Dict[int, logging.Formatter] = {}
 
-    def __init__(self, message_format: str, date_format: str = None, style='%'):
+    def __init__(self, name_format: str, message_format: str, date_format: str = None, style='%'):
         super(_ColorFormatter, self).__init__(fmt=message_format, datefmt=date_format)
-        _ColorFormatter.FORMATTERS[logging.NOTSET] = logging.Formatter(fmt='\u001b[37m' + message_format + '\u001b[0m',
+        _ColorFormatter.FORMATTERS[logging.NOTSET] = logging.Formatter(fmt=f'{name_format}\u001b[37m{message_format}\u001b[0m',
                                                                        style=style)
-        _ColorFormatter.FORMATTERS[logging.DEBUG] = logging.Formatter(fmt='\u001b[37m' + message_format + '\u001b[0m',
+        _ColorFormatter.FORMATTERS[logging.DEBUG] = logging.Formatter(fmt=f'{name_format}\u001b[37m{message_format}\u001b[0m',
                                                                       style=style)
-        _ColorFormatter.FORMATTERS[logging.INFO] = logging.Formatter(fmt='\u001b[92m' + message_format + '\u001b[0m',
+        _ColorFormatter.FORMATTERS[logging.INFO] = logging.Formatter(fmt=f'{name_format}\u001b[92m{message_format}\u001b[0m',
                                                                      style=style)
-        _ColorFormatter.FORMATTERS[logging.WARN] = logging.Formatter(fmt='\u001b[93m' + message_format + '\u001b[0m',
+        _ColorFormatter.FORMATTERS[logging.WARN] = logging.Formatter(fmt=f'{name_format}\u001b[93m{message_format}\u001b[0m',
                                                                      style=style)
-        _ColorFormatter.FORMATTERS[logging.ERROR] = logging.Formatter(fmt='\u001b[95m' + message_format + '\u001b[0m',
+        _ColorFormatter.FORMATTERS[logging.ERROR] = logging.Formatter(fmt=f'{name_format}\u001b[95m{message_format}\u001b[0m',
                                                                       style=style)
         _ColorFormatter.FORMATTERS[logging.CRITICAL] = logging.Formatter(
             fmt='\u001b[91m' + message_format + '\u001b[0m',
@@ -149,7 +149,7 @@ class _ColorFormatter(logging.Formatter):
 
 class Actions:
     LOG_FMT = '%(asctime)s:%(levelname)s:%(name)s: %(message)s'
-    CONSOLE_LOG_FMT = '%(name)s: %(message)s'
+    # CONSOLE_LOG_FMT = '%(name)s: %(message)s'
     LOG_DATE_FMT = '%Y-%m-%d %H:%M:%S,uuu'
 
     def __init__(self, actions_home_path: Path = Path.cwd(), log_level: str = 'DEBUG'):
@@ -167,7 +167,7 @@ class Actions:
 
         self.console_handler: logging.Handler = logging.StreamHandler()
         self.console_handler.setLevel(logging.INFO)
-        self.console_handler.formatter = _ColorFormatter(message_format=Actions.CONSOLE_LOG_FMT)
+        self.console_handler.formatter = _ColorFormatter(name_format='%(name)s: ', message_format='%(message)s')
 
         log_path = self.actions_home_path / 'logs' / (self.datetime_prefix + "_log.txt")
         log_path.parent.mkdir(parents=True, exist_ok=True)
